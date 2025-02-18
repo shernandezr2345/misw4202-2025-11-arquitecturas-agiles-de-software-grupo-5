@@ -1,11 +1,9 @@
 from flask import Flask
 from flask_swagger_ui import get_swaggerui_blueprint
-from config import Config
 from models.products import Product
 from controllers.product_ctr import product_ctr
 
 app = Flask(__name__)
-app.config.from_object(Config)
 
 # Configurar Swagger UI
 SWAGGER_URL = "/swagger"  # URL donde se servirá Swagger UI
