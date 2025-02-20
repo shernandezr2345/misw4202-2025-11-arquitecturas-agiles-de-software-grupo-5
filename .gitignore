@@ -1,5 +1,6 @@
 __pycache__/
 migrations/
+controllers/__pycache__/
 models/__pycache__/
 repositories/__pycache__/
 views/__pycache__/

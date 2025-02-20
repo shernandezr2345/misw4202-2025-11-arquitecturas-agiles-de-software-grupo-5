@@ -1,25 +1,17 @@
-import psycopg2
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask import Flask
 import os
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
-DATABASE_CONFIG = {
-    "dbname": os.getenv("DB_NAME", "bd"),
-    "user": os.getenv("DB_USER", "user"),
-    "password": os.getenv("DB_PASSWORD", "pass"),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "5432"),
-}
+db = SQLAlchemy()
+migrate = Migrate()
+app = Flask(__name__)
 
-# Función para obtener conexión a PostgreSQL
-def get_db_connection():
-    conn = psycopg2.connect(
-        dbname=DATABASE_CONFIG["dbname"],
-        user=DATABASE_CONFIG["user"],
-        password=DATABASE_CONFIG["password"],
-        host=DATABASE_CONFIG["host"],
-        port=DATABASE_CONFIG["port"]
-    )
-    return conn
+def init_db(app: Flask):
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    migrate.init_app(app, db)

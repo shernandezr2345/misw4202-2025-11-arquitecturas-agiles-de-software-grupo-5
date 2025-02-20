@@ -1,31 +1,77 @@
 {
-  "swagger": "2.0",
-  "info": {
-    "title": "API de Productos",
-    "description": "Documentación de la API de Productos con Flask-Swagger-UI",
-    "version": "1.0.0"
-  },
-  "host": "127.0.0.1:8080",
-  "schemes": ["http"],
-  "paths": {
-    "/api/products": {
-      "get": {
-        "summary": "Obtener todos los productos",
-        "responses": {
-          "200": {
-            "description": "Lista de productos obtenida con éxito",
-            "schema": {
-              "type": "array",
-              "items": {
-                "properties": {
-                  "id": { "type": "integer" },
-                  "name": { "type": "string" }
+    "swagger": "2.0",
+    "info": {
+        "title": "API de Productos",
+        "description": "Documentación de la API de Productos con Flask-Swagger-UI",
+        "version": "1.0.0"
+    },
+    "host": "127.0.0.1:8080",
+    "schemes": [
+        "http"
+    ],
+    "paths": {
+        "/api/products": {
+            "get": {
+                "summary": "Obtener todos los productos",
+                "responses": {
+                    "200": {
+                        "description": "Lista de productos obtenida con éxito",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "properties": {
+                                    "id": {
+                                        "type": "integer"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-              }
             }
-          }
+        },
+        "/api/products/{id}": {
+            "get": {
+                "summary": "Obtener producto por ID",
+                "tags": [
+                    "Products"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "integer",
+                        "description": "ID del producto"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Producto encontrado",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "id": 1,
+                                    "name": "Producto A"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Producto no encontrado",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "message": "Product not found"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-      }
     }
-  }
 }
