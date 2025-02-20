@@ -1,2 +1,5 @@
-db.py
-__pycache__
+__pycache__/
+migrations/
+models/__pycache__/
+repositories/__pycache__/
+views/__pycache__/
