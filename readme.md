@@ -66,6 +66,78 @@ docker exec -it flask_api flask db migrate -m "Crear tabla products"
 docker exec -it flask_api flask db upgrade
 ```
 
+# Monitorización con Prometheus y Grafana
+
+Asegúrate de tener **Docker** y **Docker Compose** instalados y levantar los contenedores
+
+```yaml
+docker-compose up -d
+```
+
+### Acceder a Prometheus
+
+Una vez que Prometheus está corriendo, accede a su interfaz web:
+
+```
+http://localhost:9090
+```
+
+#### Consultas en PromQL
+
+Puedes realizar consultas en la pestaña **Graph** de Prometheus. Ejemplos de queries:
+
+- **Total de requests:**
+  ```
+  http_requests_total
+  ```
+- **Requests por método HTTP:**
+  ```
+  http_requests_total{method="GET"}
+  ```
+- **Tiempo de respuesta promedio:**
+  ```
+  rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])
+  ```
+
+---
+
+### Acceder a Grafana
+
+Abre Grafana en tu navegador:
+
+```
+http://localhost:3000
+```
+
+**Credenciales por defecto:**
+- Usuario: `admin`
+- Contraseña: `admin`
+
+#### Agregar Prometheus como Data Source
+
+1. Ve a **Configuration** → **Data Sources**.
+2. Selecciona **Add data source** → **Prometheus**.
+3. En la URL coloca:
+   ```
+   http://prometheus:9090
+   ```
+4. Guarda la configuración.
+
+#### Crear un Dashboard en Grafana
+
+1. Ve a **Create** → **Dashboard**.
+2. Agrega un **Panel**.
+3. En **Query**, selecciona `Prometheus` como Data Source y usa esta consulta:
+   ```
+   http_requests_total{method="GET"}
+   ```
+4. Guarda el dashboard.
+
+---
+
+Con esta configuración, puedes visualizar métricas en tiempo real y analizar el rendimiento de tu aplicación Flask usando **Prometheus y Grafana**.
+
+
 ## Consideraciones Adicionales
 
 - Asegúrate de tener Docker y Docker Compose instalados en tu sistema antes de iniciar.
