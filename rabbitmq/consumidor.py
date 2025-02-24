@@ -10,7 +10,7 @@ def connect_to_rabbitmq():
     for i in range(MAX_RETRIES):
         try:
             connection = pika.BlockingConnection(pika.ConnectionParameters('rabbitmq'))
-            print("onexión establecida con RabbitMQ")
+            print("Conexión establecida con RabbitMQ")
             return connection
         except pika.exceptions.AMQPConnectionError:
             print(f"Intento {i+1}/{MAX_RETRIES}: No se pudo conectar a RabbitMQ. Reintentando en 5 segundos...")

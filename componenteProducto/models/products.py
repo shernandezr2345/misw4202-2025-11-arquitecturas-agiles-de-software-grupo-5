@@ -1,4 +1,6 @@
 from db import db
+import sqlparse
+from pathlib import Path
 
 class Product(db.Model):
     __tablename__ = 'products'

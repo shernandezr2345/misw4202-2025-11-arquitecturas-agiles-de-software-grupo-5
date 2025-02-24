@@ -1,3 +1,5 @@
+import db
+import pandas as pd
 from flask import Flask
 from flask import Response
 from flask_cors import CORS
@@ -6,6 +8,7 @@ from models.products import Product
 from controllers.product_ctr import product_ctr
 from db import init_db
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
 
 app = Flask(__name__)
 CORS(app)
@@ -24,5 +27,17 @@ app.register_blueprint(product_ctr, url_prefix='/api')
 def metrics():
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
+def llenar_tabla_products():
+    # Leer el archivo csv
+    products_data = pd.read_csv("MOCK_DATA.csv")
+    conx = db.connect()
+    for row in products_data.rows:
+        producto = Product(id = row['id'], name = row['name'])
+        conx.session.add(producto)
+        conx.session.commit()
+
+
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=8080, debug=True)
+    llenar_tabla_products()
