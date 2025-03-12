@@ -9,7 +9,112 @@
     "schemes": [
         "http"
     ],
+    "securityDefinitions": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "Ingrese su token JWT en este formato: **Bearer &lt;token&gt;**"
+        }
+    },
     "paths": {
+        "/auth/register": {
+            "post": {
+                "summary": "Registrar un nuevo usuario",
+                "description": "Permite registrar un nuevo usuario proporcionando un nombre de usuario y una contraseña.",
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string",
+                                    "example": "nuevo_usuario"
+                                },
+                                "password": {
+                                    "type": "string",
+                                    "example": "contraseña_segura"
+                                }
+                            },
+                            "required": ["username", "password"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Usuario creado con éxito",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "User created successfully"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "El usuario ya existe",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "example": "User already exists"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos faltantes o inválidos"
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "summary": "Iniciar sesión y obtener JWT",
+                "description": "Genera un token JWT para autenticación",
+                "parameters": [
+                    {
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string"
+                                },
+                                "password": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["username", "password"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token JWT generado con éxito",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "access_token": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciales inválidas"
+                    }
+                }
+            }
+        },
         "/api/products": {
             "get": {
                 "summary": "Obtener todos los productos",
