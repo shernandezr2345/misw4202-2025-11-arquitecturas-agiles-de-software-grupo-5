@@ -37,6 +37,15 @@ Carpeta: rabbitmq
 
 Utilizado para la gestión de colas de mensajería y el procesamiento asíncrono de las consultas de productos.
 
+### 5. Zuul - apigateway
+
+Carpeta: zuul
+
+El Gateway gestiona el enrutamiento, permitiendo un punto de acceso unificado a los servicios
+
+- URL directa: http://localhost:8080/
+- URL a través del gateway: http://localhost:8088/flask/
+
 ## Cómo Levantar el Proyecto
 
 Para iniciar todos los servicios del proyecto en contenedores Docker, ejecuta el siguiente comando en la raíz del proyecto:

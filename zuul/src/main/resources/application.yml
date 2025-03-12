@@ -1,0 +1,18 @@
+server:
+  port: 8088  
+
+zuul:
+  routes:
+    flask-api:
+      path: /flask/**
+      url: http://flask_api:8080  
+      strip-prefix: true
+      
+  sensitive-headers: 
+    - Cookie
+    - Set-Cookie
+    - Authorization
+
+spring:
+  application:
+    name: api-gateway
