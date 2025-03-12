@@ -9,6 +9,7 @@ from controllers.auth_ctr import auth_ctr
 from db import init_db
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from flask_jwt_extended import JWTManager
+from datetime import datetime, timedelta
 
 
 app = Flask(__name__)
@@ -17,13 +18,25 @@ CORS(app)
 init_db(app)
 
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'
+app.config['JWT_TOKEN_LOCATION'] = ['headers']
+app.config['JWT_HEADER_NAME'] = 'Authorization'
+app.config['JWT_HEADER_TYPE'] = 'Bearer'
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 
 jwt = JWTManager(app)
 
 SWAGGER_URL = "/swagger"  
 API_URL = "/static/swagger.json" 
 
-swagger_ui_blueprint = get_swaggerui_blueprint(SWAGGER_URL, API_URL, config={"app_name": "API de Productos"})
+swagger_ui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL, API_URL, 
+    config={
+        "app_name": "API de Productos",
+        "headers": [
+            ("Authorization", "Bearer <token>")
+        ]
+    }
+)
 app.register_blueprint(swagger_ui_blueprint, url_prefix=SWAGGER_URL)
 
 app.register_blueprint(product_ctr, url_prefix='/api')

@@ -1,9 +1,11 @@
-from flask import Blueprint, request, jsonify
-from models.users import User
-from db import db
-from flask_jwt_extended import create_access_token
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_bcrypt import Bcrypt
+from datetime import datetime, timedelta  
+from views.user_vm import UserView
 
 auth_ctr = Blueprint('auth', __name__)
+bcrypt = Bcrypt()
 
 @auth_ctr.route('/register', methods=['POST'])
 def register():
@@ -11,15 +13,13 @@ def register():
     username = data.get('username')
     password = data.get('password')
 
-    if User.query.filter_by(username=username).first():
-        return jsonify({"message": "User already exists"}), 409
+    if not username or not password:
+        return jsonify({"message": "Username and password are required."}), 400
 
-    new_user = User(username=username)
-    new_user.set_password(password)
-    db.session.add(new_user)
-    db.session.commit()
+    password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
-    return jsonify({"message": "User created successfully"}), 201
+    result, status = UserView.register_user(username, password_hash)
+    return jsonify(result), status
 
 @auth_ctr.route('/login', methods=['POST'])
 def login():
@@ -27,10 +27,32 @@ def login():
     username = data.get('username')
     password = data.get('password')
 
-    user = User.query.filter_by(username=username).first()
+    if not username or not password:
+        return jsonify({"message": "Username and password are required."}), 400
 
-    if not user or not user.check_password(password):
-        return jsonify({"message": "Invalid credentials"}), 401
+    user, status = UserView.get_user_by_username(username)
+
+    if status != 200 or not bcrypt.check_password_hash(user["password_hash"], password):
+        return jsonify({"message": "Invalid username or password."}), 401
 
     access_token = create_access_token(identity=username)
-    return jsonify(access_token=access_token), 200
+    duration_minutes = int(current_app.config['JWT_ACCESS_TOKEN_EXPIRES'].total_seconds() / 60)
+    expiration_time = datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
+
+    return jsonify({
+        "access_token": access_token,
+        "expires_at": expiration_time.strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
+        "duration_minutes": duration_minutes
+    }), 200
+
+@auth_ctr.route('/me', methods=['GET'])
+@jwt_required()
+def get_current_user():
+    current_user = get_jwt_identity()
+    return jsonify({"logged_in_as": current_user}), 200
+
+@auth_ctr.route('/users', methods=['GET'])
+@jwt_required()
+def get_all_users():
+    users, status = UserView.get_all_users()
+    return jsonify(users), status

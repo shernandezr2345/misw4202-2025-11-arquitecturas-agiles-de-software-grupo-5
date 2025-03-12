@@ -14,6 +14,8 @@
             "type": "apiKey",
             "name": "Authorization",
             "in": "header",
+            "bearerFormat": "JWT",
+            "scheme": "bearer",
             "description": "Ingrese su token JWT en este formato: **Bearer &lt;token&gt;**"
         }
     },
@@ -118,6 +120,14 @@
         "/api/products": {
             "get": {
                 "summary": "Obtener todos los productos",
+                "tags": [
+                    "Products"
+                ],
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Lista de productos obtenida con éxito",
@@ -143,6 +153,11 @@
                 "summary": "Obtener producto por ID",
                 "tags": [
                     "Products"
+                ],
+                "security": [
+                    {
+                        "Bearer": []
+                    }
                 ],
                 "parameters": [
                     {
