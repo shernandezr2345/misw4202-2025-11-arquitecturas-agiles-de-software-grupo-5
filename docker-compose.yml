@@ -5,7 +5,7 @@ services:
     restart: always
     environment:
       FLASK_ENV: development
-      DATABASE_URL: "postgresql://admin:secret123*@db:5432/scrum"
+      DATABASE_URL: "postgresql://usser:1234@db:5432/db"
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
     ports:
       - "8080:8080"
@@ -97,8 +97,21 @@ services:
       - flask_app
     networks:
       - flask_network
-
-
+      
+  anomaly_worker:
+    build: ./anomaly_worker
+    container_name: anomaly_worker
+    restart: always
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    volumes:
+      - ./anomaly_worker:/app
+    command: ["python", "worker.py"]
+    depends_on:
+      - rabbitmq
+    networks:
+      - flask_network
+  
 volumes:
   postgres_data: {}
   grafana_data: {}

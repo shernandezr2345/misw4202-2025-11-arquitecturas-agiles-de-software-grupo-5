@@ -17,7 +17,7 @@ def get_products():
     return jsonify(response), status
 
 @product_ctr.route('/products/<int:id>', methods=['GET'])
-@jwt_required()
+
 def get_product_by_id(id):
     REQUEST_COUNT.labels(method='GET', endpoint='/products/<id>').inc()
     with REQUEST_LATENCY.labels(method='GET', endpoint='/products/<id>').time():

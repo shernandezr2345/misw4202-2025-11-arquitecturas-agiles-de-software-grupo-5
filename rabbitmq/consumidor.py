@@ -17,6 +17,17 @@ def connect_to_rabbitmq():
             time.sleep(5)  # Espera antes de volver a intentar
     raise Exception("No se pudo conectar a RabbitMQ después de varios intentos.")
 
+def detect_anomaly(product_data):
+    """ Lógica para detectar anomalías en los productos """
+    product_valor = product_data.get("price", 0)
+    print(f"⚠️ VAlloorooror: {product_valor}'.")
+
+    if product_data.get("price", 0) < 1:  # Ejemplo: precio extremadamente bajo
+        return True
+    if product_data.get("stock", 0) < 0:  # Ejemplo: stock negativo
+        return True
+    return False
+
 def callback(ch, method, properties, body):
     """ Procesa los mensajes recibidos desde RabbitMQ y envía el resultado a otra cola """
     try:
@@ -29,9 +40,28 @@ def callback(ch, method, properties, body):
             # Hacer la consulta HTTP a la API de productos
             url = f"http://flask_api:8080/api/products/{product_id}"
             response = requests.get(url)
-
+            
+            print(f"🔍 Resultado {response.status_code}...")
             # Preparar el resultado para la cola de respuestas
             if response.status_code == 200:
+                product_data = response.json()
+
+                if detect_anomaly(product_data):
+                    anomaly_message = {
+                        "tabla": "products",
+                        "id": product_id,
+                        "status": "anomaly_requests",
+                        "data": product_data
+                    }
+                    anomaly_channel.basic_publish(
+                        exchange='',
+                        routing_key='anomaly_requests',
+                        body=json.dumps(anomaly_message),
+                        properties=pika.BasicProperties(delivery_mode=2)
+                    )
+                    print(f"⚠️ Anomalía detectada en producto {product_id}, enviado a la cola 'anomaly_requests'.")
+                    return  # No procesamos el mensaje en la cola normal si es anómalo
+        
                 result = {
                     "product_id": product_id,
                     "status": "success",
@@ -75,6 +105,11 @@ channel = connection.channel()
 channel.queue_declare(queue="product_requests", durable=True)
 response_channel = connection.channel()
 response_channel.queue_declare(queue="product_responses", durable=True)
+
+# Nueva cola para anomalías
+anomaly_channel = connection.channel()
+anomaly_channel.queue_declare(queue="anomaly_requests", durable=True)
+
 
 # Escuchar mensajes
 channel.basic_consume(queue='product_requests', on_message_callback=callback, auto_ack=True)
