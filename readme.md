@@ -1,10 +1,13 @@
-# Experimento: Evaluación de Tácticas de Disponibilidad en el Componente de Consulta de Productos
+# Experimento: Evaluación de Tácticas de SEGURIDAD en el Componente de Consulta de Productos (DETECCIÒN)
+
+
 
 ## Objetivo
 
-El objetivo de este experimento es evaluar la efectividad de la táctica de monitoreo activo en un sistema basado en Flask, utilizando un componente de Consulta de Productos con procesamiento asíncrono.
+El objetivo de este experimento es la capacidad del sistema para identificar accesos no autorizados o eventos anómalos y generar alertas en tiempo real. El escenario de prueba incluirá intentos de acceso por parte de un usuario fraudulento que intente ingresar sin autenticación o desde una dirección IP sospechosa o detectar eventos que puedan ser sospechos, lo que debería desencadenar una respuesta automática del sistema. Los resultados esperados incluyen la detección efectiva de estos intentos de acceso, la generación de alertas en tiempo real a través de RabbitMQ, el registro y visualización de los eventos de seguridad, y la demostración de una acción de respuesta ante el intento de intrusión, como el envío de una notificación o el bloqueo del acceso.​ 
 
-El experimento se llevará a cabo mediante la simulación de una carga elevada de solicitudes de consulta de productos, con el fin de evaluar la disponibilidad y resiliencia del sistema. Además, se analizará cómo el monitoreo activo contribuye a la detección temprana de problemas, evitando que afecten la disponibilidad del servicio y asegurando que el componente se mantenga operativo bajo alta carga y posibles fallos.
+
+![image](https://github.com/user-attachments/assets/7259121a-ac37-4818-a084-c217fb059032)
 
 ## Componentes del Proyecto
 
@@ -31,6 +34,18 @@ Carpeta: prometheus
 
 Configurado para monitorear métricas del sistema y enviar alertas ante posibles problemas.
 
+scrape_configs:
+  - job_name: 'flask_api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['flask_api:8080']
+
+  - job_name: 'anomaly_worker'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['anomaly_worker:8001']
+
+
 ### 4. RabbitMQ
 
 Carpeta: rabbitmq
@@ -45,6 +60,19 @@ El Gateway gestiona el enrutamiento, permitiendo un punto de acceso unificado a 
 
 - URL directa: http://localhost:8080/
 - URL a través del gateway: http://localhost:8088/flask/
+
+### 6. Anomaly Worker (anomaly_worker)
+Función: Analiza métricas de productos en búsqueda de anomalías.
+
+Endpoint de métricas:
+
+GET http://localhost:8001/metrics
+Métricas principales:
+
+anomaly_requests_total → Total de anomalías detectadas.
+
+
+
 
 ## Cómo Levantar el Proyecto
 
