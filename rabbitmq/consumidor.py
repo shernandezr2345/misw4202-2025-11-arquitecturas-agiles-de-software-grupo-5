@@ -2,8 +2,36 @@ import pika
 import json
 import requests
 import time
+import sqlite3
+import threading
 
 MAX_RETRIES = 10  # Número máximo de intentos de conexión
+
+# Conectar a la base de datos SQLite y crear la tabla si no existe
+def initialize_db():
+    conn = sqlite3.connect("blocked_ips.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS blocked_ips (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT UNIQUE,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_blocked_ip(ip_address):
+    """ Registra una IP bloqueada en la base de datos """
+    conn = sqlite3.connect("blocked_ips.db")
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO blocked_ips (ip_address) VALUES (?)", (ip_address,))
+        conn.commit()
+        print(f"IP {ip_address} registrada en la base de datos.")
+    except sqlite3.IntegrityError:
+        print(f"La IP {ip_address} ya está registrada.")
+    conn.close()
 
 def connect_to_rabbitmq():
     """ Intenta conectarse a RabbitMQ con reintentos en caso de fallo """
@@ -97,7 +125,25 @@ def callback(ch, method, properties, body):
     except json.JSONDecodeError:
         print("Error: No se pudo decodificar el mensaje JSON recibido.")
 
-# Conectar a RabbitMQ con reintentos
+def blocked_ips_callback(ch, method, properties, body):
+    """ Procesa los mensajes de la cola 'blocked_ips' y almacena la IP en la base de datos """
+    try:
+        message = json.loads(body)
+        ip_address = message.get("ip_address")
+
+        if ip_address:
+            print(f"Dirección IP bloqueada detectada: {ip_address}")
+            save_blocked_ip(ip_address)  # Guardar en la base de datos
+        else:
+            print("Error: No se encontró 'ip_address' en el mensaje")
+
+    except json.JSONDecodeError:
+        print("Error: No se pudo decodificar el mensaje JSON recibido.")
+
+# Inicializar la base de datos
+initialize_db()
+
+# Conectar a RabbitMQ
 connection = connect_to_rabbitmq()
 channel = connection.channel()
 
@@ -110,9 +156,21 @@ response_channel.queue_declare(queue="product_responses", durable=True)
 anomaly_channel = connection.channel()
 anomaly_channel.queue_declare(queue="anomaly_requests", durable=True)
 
+# Cola de IPs bloqueadas
+blocked_ips_channel = connection.channel()
+blocked_ips_channel.queue_declare(queue="blocked_ips", durable=True)
 
-# Escuchar mensajes
-channel.basic_consume(queue='product_requests', on_message_callback=callback, auto_ack=True)
+# Escuchar mensajes en ambas colas con threads
+def start_consuming(channel, queue, callback):
+    channel.basic_consume(queue=queue, on_message_callback=callback, auto_ack=True)
+    channel.start_consuming()
 
-print("📡 Esperando mensajes de RabbitMQ...")
-channel.start_consuming()
+# Crear hilos para escuchar ambas colas al mismo tiempo
+thread1 = threading.Thread(target=start_consuming, args=(channel, "product_requests", callback))
+thread2 = threading.Thread(target=start_consuming, args=(blocked_ips_channel, "blocked_ips", blocked_ips_callback))
+
+thread1.start()
+thread2.start()
+
+thread1.join()
+thread2.join()
