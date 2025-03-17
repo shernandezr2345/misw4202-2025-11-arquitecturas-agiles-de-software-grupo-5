@@ -143,7 +143,7 @@ def blocked_ips_callback(ch, method, properties, body):
 # Inicializar la base de datos
 initialize_db()
 
-# Conectar a RabbitMQ
+# Conectar a RabbitMQ con reintentos
 connection = connect_to_rabbitmq()
 channel = connection.channel()
 
@@ -156,21 +156,19 @@ response_channel.queue_declare(queue="product_responses", durable=True)
 anomaly_channel = connection.channel()
 anomaly_channel.queue_declare(queue="anomaly_requests", durable=True)
 
-# Cola de IPs bloqueadas
+# Escuchar mensajes de IPs bloqueadas
 blocked_ips_channel = connection.channel()
 blocked_ips_channel.queue_declare(queue="blocked_ips", durable=True)
 
-# Escuchar mensajes en ambas colas con threads
-def start_consuming(channel, queue, callback):
-    channel.basic_consume(queue=queue, on_message_callback=callback, auto_ack=True)
+# Registrar consumidores para ambas colas en el mismo canal
+channel.basic_consume(queue='product_requests', on_message_callback=callback, auto_ack=True)
+channel.basic_consume(queue='blocked_ips', on_message_callback=blocked_ips_callback, auto_ack=True)
+
+print("📡 Esperando mensajes de RabbitMQ...")
+
+# Iniciar la escucha de eventos para ambas colas
+try:
     channel.start_consuming()
-
-# Crear hilos para escuchar ambas colas al mismo tiempo
-thread1 = threading.Thread(target=start_consuming, args=(channel, "product_requests", callback))
-thread2 = threading.Thread(target=start_consuming, args=(blocked_ips_channel, "blocked_ips", blocked_ips_callback))
-
-thread1.start()
-thread2.start()
-
-thread1.join()
-thread2.join()
+except KeyboardInterrupt:
+    print("🛑 Deteniendo el consumidor...")
+    channel.stop_consuming()
