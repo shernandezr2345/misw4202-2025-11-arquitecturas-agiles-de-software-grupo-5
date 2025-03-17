@@ -2,6 +2,8 @@ import pika
 import json
 import requests
 import time
+import sqlite3
+import threading
 
 MAX_RETRIES = 10  # Número máximo de intentos de conexión
 
@@ -33,6 +35,7 @@ def callback(ch, method, properties, body):
     try:
         message = json.loads(body)
         product_id = message.get("product_id")  # Extrae el ID del producto
+        blocked_ip = message.get("ip_address")  # Extrae la IP bloqueada
 
         if product_id:
             print(f"🔍 Consultando producto {product_id}...")
@@ -60,6 +63,18 @@ def callback(ch, method, properties, body):
                         properties=pika.BasicProperties(delivery_mode=2)
                     )
                     print(f"⚠️ Anomalía detectada en producto {product_id}, enviado a la cola 'anomaly_requests'.")
+
+                    if blocked_ip:
+                        blocked_ip_message = {
+                            "ip_address": blocked_ip
+                        }
+                        anomaly_channel.basic_publish(
+                            exchange='',
+                            routing_key='blocked_ips',
+                            body=json.dumps(blocked_ip_message),
+                            properties=pika.BasicProperties(delivery_mode=2)
+                        )
+                        print(f"🚫 IP {blocked_ip} bloqueada, enviado a la cola 'blocked_ips'.")
                     return  # No procesamos el mensaje en la cola normal si es anómalo
         
                 result = {
@@ -110,9 +125,14 @@ response_channel.queue_declare(queue="product_responses", durable=True)
 anomaly_channel = connection.channel()
 anomaly_channel.queue_declare(queue="anomaly_requests", durable=True)
 
-
-# Escuchar mensajes
+# Registrar consumidores para ambas colas en el mismo canal
 channel.basic_consume(queue='product_requests', on_message_callback=callback, auto_ack=True)
 
 print("📡 Esperando mensajes de RabbitMQ...")
-channel.start_consuming()
+
+# Iniciar la escucha de eventos para ambas colas
+try:
+    channel.start_consuming()
+except KeyboardInterrupt:
+    print("🛑 Deteniendo el consumidor...")
+    channel.stop_consuming()

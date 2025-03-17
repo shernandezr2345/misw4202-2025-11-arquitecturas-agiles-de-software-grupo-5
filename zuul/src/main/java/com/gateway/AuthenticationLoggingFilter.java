@@ -5,9 +5,13 @@ import com.netflix.zuul.context.RequestContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.Channel;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,9 +27,13 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
     private static final int MAX_FAILED_ATTEMPTS = 15;
     private static final long BLOCK_TIME_IN_MINUTES = 1;
 
+    private static final String RABBITMQ_URL = System.getenv("RABBITMQ_URL");
+    private static final String DEFAULT_RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/";
+    private static final String QUEUE_NAME = "anomaly_requests";
+
     @Override
     public String filterType() {
-        return "post"; 
+        return "post";
     }
 
     @Override
@@ -53,6 +61,7 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
                 ctx.setResponseStatusCode(403);
                 ctx.setResponseBody("IP bloqueada temporalmente por múltiples intentos fallidos.");
                 logger.warn("Bloqueo de IP {} por múltiples intentos fallidos", clientIp);
+                sendBlockedIpToQueue(clientIp);
                 return null;
             } else {
                 blockedIps.remove(clientIp);
@@ -67,6 +76,7 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
             if (failedAttempts.get(clientIp) >= MAX_FAILED_ATTEMPTS) {
                 blockedIps.put(clientIp, LocalDateTime.now());
                 logger.warn("IP {} bloqueada por exceder los intentos fallidos de autenticación.", clientIp);
+                sendBlockedIpToQueue(clientIp);
             }
         } else {
             failedAttempts.remove(clientIp);
@@ -75,13 +85,29 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
         return null;
     }
 
-    private void handleBlockedIp(RequestContext ctx, String clientIp) {
-        if (isIpBlocked(clientIp)) {
-            if (isBlockStillActive(clientIp)) {
-                blockResponse(ctx, clientIp);
-            } else {
-                unblockIp(clientIp);
-            }
+    private void sendBlockedIpToQueue(String clientIp) {
+        String rabbitmqHost = System.getenv("RABBITMQ_HOST");
+        if (rabbitmqHost == null || rabbitmqHost.isEmpty()) {
+            rabbitmqHost = "rabbitmq";  // Nombre del contenedor o localhost
+        }
+
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost(rabbitmqHost);
+        factory.setPort(5672);
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setVirtualHost("/");
+
+        try (Connection connection = factory.newConnection();
+            Channel channel = connection.createChannel()) {
+
+            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+            String message = "{\"event\": \"IP_BLOCKED\", \"ip\": \"" + clientIp + "\", \"timestamp\": \"" + LocalDateTime.now() + "\"}";
+            channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+
+            logger.info("Mensaje enviado a RabbitMQ: {}", message);
+        } catch (Exception e) {
+            logger.error("Error al conectar con RabbitMQ o enviar el mensaje", e);
         }
     }
 }
