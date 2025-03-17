@@ -28,8 +28,8 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
     private static final long BLOCK_TIME_IN_MINUTES = 1;
 
     private static final String RABBITMQ_URL = System.getenv("RABBITMQ_URL");
-    private static final String DEFAULT_RABBITMQ_URL = "amqp://guest:guest@localhost:5672/";
-    private static final String QUEUE_NAME = "product_requests";
+    private static final String DEFAULT_RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/";
+    private static final String QUEUE_NAME = "anomaly_requests";
 
     @Override
     public String filterType() {
@@ -60,6 +60,7 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
                 ctx.setResponseStatusCode(403);
                 ctx.setResponseBody("IP bloqueada temporalmente por múltiples intentos fallidos.");
                 logger.warn("Bloqueo de IP {} por múltiples intentos fallidos", clientIp);
+                sendBlockedIpToQueue(clientIp);
                 return null;
             } else {
                 blockedIps.remove(clientIp);
@@ -74,8 +75,6 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
             if (failedAttempts.get(clientIp) >= MAX_FAILED_ATTEMPTS) {
                 blockedIps.put(clientIp, LocalDateTime.now());
                 logger.warn("IP {} bloqueada por exceder los intentos fallidos de autenticación.", clientIp);
-
-                // Enviar el evento de bloqueo a RabbitMQ
                 sendBlockedIpToQueue(clientIp);
             }
         } else {
@@ -86,22 +85,28 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
     }
 
     private void sendBlockedIpToQueue(String clientIp) {
-        String rabbitmqUrl = RABBITMQ_URL != null ? RABBITMQ_URL : DEFAULT_RABBITMQ_URL;
+        String rabbitmqHost = System.getenv("RABBITMQ_HOST");
+        if (rabbitmqHost == null || rabbitmqHost.isEmpty()) {
+            rabbitmqHost = "rabbitmq";  // Nombre del contenedor o localhost
+        }
 
         ConnectionFactory factory = new ConnectionFactory();
-        try {
-            factory.setUri(rabbitmqUrl);
-            try (Connection connection = factory.newConnection();
-                 Channel channel = connection.createChannel()) {
+        factory.setHost(rabbitmqHost);
+        factory.setPort(5672);
+        factory.setUsername("guest");
+        factory.setPassword("guest");
+        factory.setVirtualHost("/");
 
-                channel.queueDeclare(QUEUE_NAME, true, false, false, null);
-                String message = "{\"event\": \"IP_BLOCKED\", \"ip\": \"" + clientIp + "\", \"timestamp\": \"" + LocalDateTime.now() + "\"}";
-                channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+        try (Connection connection = factory.newConnection();
+            Channel channel = connection.createChannel()) {
 
-                logger.info("Mensaje enviado a RabbitMQ: {}", message);
-            }
+            channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+            String message = "{\"event\": \"IP_BLOCKED\", \"ip\": \"" + clientIp + "\", \"timestamp\": \"" + LocalDateTime.now() + "\"}";
+            channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+
+            logger.info("Mensaje enviado a RabbitMQ: {}", message);
         } catch (Exception e) {
-            logger.error("Error al enviar mensaje a RabbitMQ", e);
+            logger.error("Error al conectar con RabbitMQ o enviar el mensaje", e);
         }
     }
 }

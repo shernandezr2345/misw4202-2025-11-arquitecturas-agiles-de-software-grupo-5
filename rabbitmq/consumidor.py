@@ -7,32 +7,6 @@ import threading
 
 MAX_RETRIES = 10  # Número máximo de intentos de conexión
 
-# Conectar a la base de datos SQLite y crear la tabla si no existe
-def initialize_db():
-    conn = sqlite3.connect("blocked_ips.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS blocked_ips (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ip_address TEXT UNIQUE,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def save_blocked_ip(ip_address):
-    """ Registra una IP bloqueada en la base de datos """
-    conn = sqlite3.connect("blocked_ips.db")
-    cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT INTO blocked_ips (ip_address) VALUES (?)", (ip_address,))
-        conn.commit()
-        print(f"IP {ip_address} registrada en la base de datos.")
-    except sqlite3.IntegrityError:
-        print(f"La IP {ip_address} ya está registrada.")
-    conn.close()
-
 def connect_to_rabbitmq():
     """ Intenta conectarse a RabbitMQ con reintentos en caso de fallo """
     for i in range(MAX_RETRIES):
@@ -61,6 +35,7 @@ def callback(ch, method, properties, body):
     try:
         message = json.loads(body)
         product_id = message.get("product_id")  # Extrae el ID del producto
+        blocked_ip = message.get("ip_address")  # Extrae la IP bloqueada
 
         if product_id:
             print(f"🔍 Consultando producto {product_id}...")
@@ -88,6 +63,18 @@ def callback(ch, method, properties, body):
                         properties=pika.BasicProperties(delivery_mode=2)
                     )
                     print(f"⚠️ Anomalía detectada en producto {product_id}, enviado a la cola 'anomaly_requests'.")
+
+                    if blocked_ip:
+                        blocked_ip_message = {
+                            "ip_address": blocked_ip
+                        }
+                        anomaly_channel.basic_publish(
+                            exchange='',
+                            routing_key='blocked_ips',
+                            body=json.dumps(blocked_ip_message),
+                            properties=pika.BasicProperties(delivery_mode=2)
+                        )
+                        print(f"🚫 IP {blocked_ip} bloqueada, enviado a la cola 'blocked_ips'.")
                     return  # No procesamos el mensaje en la cola normal si es anómalo
         
                 result = {
@@ -140,9 +127,6 @@ def blocked_ips_callback(ch, method, properties, body):
     except json.JSONDecodeError:
         print("Error: No se pudo decodificar el mensaje JSON recibido.")
 
-# Inicializar la base de datos
-initialize_db()
-
 # Conectar a RabbitMQ con reintentos
 connection = connect_to_rabbitmq()
 channel = connection.channel()
@@ -156,13 +140,8 @@ response_channel.queue_declare(queue="product_responses", durable=True)
 anomaly_channel = connection.channel()
 anomaly_channel.queue_declare(queue="anomaly_requests", durable=True)
 
-# Escuchar mensajes de IPs bloqueadas
-blocked_ips_channel = connection.channel()
-blocked_ips_channel.queue_declare(queue="blocked_ips", durable=True)
-
 # Registrar consumidores para ambas colas en el mismo canal
 channel.basic_consume(queue='product_requests', on_message_callback=callback, auto_ack=True)
-channel.basic_consume(queue='blocked_ips', on_message_callback=blocked_ips_callback, auto_ack=True)
 
 print("📡 Esperando mensajes de RabbitMQ...")
 
