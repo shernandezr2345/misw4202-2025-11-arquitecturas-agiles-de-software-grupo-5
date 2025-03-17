@@ -53,7 +53,6 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
         HttpServletResponse response = ctx.getResponse();
         String clientIp = request.getRemoteAddr();
 
-
         if (blockedIps.containsKey(clientIp)) {
             LocalDateTime blockTime = blockedIps.get(clientIp);
             if (blockTime.plusMinutes(BLOCK_TIME_IN_MINUTES).isAfter(LocalDateTime.now())) {
@@ -108,6 +107,17 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
             logger.info("Mensaje enviado a RabbitMQ: {}", message);
         } catch (Exception e) {
             logger.error("Error al conectar con RabbitMQ o enviar el mensaje", e);
+        }
+    }
+
+    private void handleBlockedIp(RequestContext ctx, String clientIp) {
+        if (isIpBlocked(clientIp)) {
+            if (isBlockStillActive(clientIp)) {
+                blockResponse(ctx, clientIp);
+                rabbitMqService.sendBlockedIpToQueue(clientIp);
+            } else {
+                unblockIp(clientIp);
+            }
         }
     }
 }
