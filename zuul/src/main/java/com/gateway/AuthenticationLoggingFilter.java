@@ -74,4 +74,14 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
 
         return null;
     }
+
+    private void handleBlockedIp(RequestContext ctx, String clientIp) {
+        if (isIpBlocked(clientIp)) {
+            if (isBlockStillActive(clientIp)) {
+                blockResponse(ctx, clientIp);
+            } else {
+                unblockIp(clientIp);
+            }
+        }
+    }
 }
