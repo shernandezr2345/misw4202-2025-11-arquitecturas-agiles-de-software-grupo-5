@@ -30,6 +30,7 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
     private static final String RABBITMQ_URL = System.getenv("RABBITMQ_URL");
     private static final String DEFAULT_RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/";
     private static final String QUEUE_NAME = "anomaly_requests";
+    private final RabbitMqService rabbitMqService;
 
     @Override
     public String filterType() {
@@ -120,4 +121,49 @@ public class AuthenticationLoggingFilter extends ZuulFilter {
             }
         }
     }
+    private boolean isIpBlocked(String clientIp) {
+        return blockedIps.containsKey(clientIp);
+    }
+
+    private boolean isBlockStillActive(String clientIp) {
+        LocalDateTime blockTime = blockedIps.get(clientIp);
+        return blockTime.plusMinutes(BLOCK_TIME_IN_MINUTES).isAfter(LocalDateTime.now());
+    }
+    private void blockResponse(RequestContext ctx, String clientIp) {
+        ctx.setSendZuulResponse(false);
+        ctx.setResponseStatusCode(403);
+        ctx.setResponseBody("IP bloqueada temporalmente por múltiples intentos fallidos.");
+        logger.warn("Bloqueo de IP {} por múltiples intentos fallidos", clientIp);
+    }
+
+    private void unblockIp(String clientIp) {
+        blockedIps.remove(clientIp);
+        failedAttempts.remove(clientIp);
+    }
+
+    private static class RabbitMqService {
+        private static final String RABBITMQ_HOST = System.getenv("RABBITMQ_HOST") != null ? System.getenv("RABBITMQ_HOST") : "rabbitmq";
+
+        void sendBlockedIpToQueue(String clientIp) {
+            ConnectionFactory factory = new ConnectionFactory();
+            factory.setHost(RABBITMQ_HOST);
+            factory.setPort(5672);
+            factory.setUsername("guest");
+            factory.setPassword("guest");
+            factory.setVirtualHost("/");
+
+            try (Connection connection = factory.newConnection();
+                 Channel channel = connection.createChannel()) {
+
+                channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+                String message = "{\"event\": \"IP_BLOCKED\", \"ip\": \"" + clientIp + "\", \"timestamp\": \"" + LocalDateTime.now() + "\"}";
+                channel.basicPublish("", QUEUE_NAME, null, message.getBytes(StandardCharsets.UTF_8));
+
+                logger.info("Mensaje enviado a RabbitMQ: {}", message);
+            } catch (Exception e) {
+                logger.error("Error al conectar con RabbitMQ o enviar el mensaje", e);
+            }
+        }
+    }
+
 }
