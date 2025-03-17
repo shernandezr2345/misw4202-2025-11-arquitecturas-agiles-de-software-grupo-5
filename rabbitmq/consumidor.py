@@ -112,21 +112,6 @@ def callback(ch, method, properties, body):
     except json.JSONDecodeError:
         print("Error: No se pudo decodificar el mensaje JSON recibido.")
 
-def blocked_ips_callback(ch, method, properties, body):
-    """ Procesa los mensajes de la cola 'blocked_ips' y almacena la IP en la base de datos """
-    try:
-        message = json.loads(body)
-        ip_address = message.get("ip_address")
-
-        if ip_address:
-            print(f"Dirección IP bloqueada detectada: {ip_address}")
-            save_blocked_ip(ip_address)  # Guardar en la base de datos
-        else:
-            print("Error: No se encontró 'ip_address' en el mensaje")
-
-    except json.JSONDecodeError:
-        print("Error: No se pudo decodificar el mensaje JSON recibido.")
-
 # Conectar a RabbitMQ con reintentos
 connection = connect_to_rabbitmq()
 channel = connection.channel()
